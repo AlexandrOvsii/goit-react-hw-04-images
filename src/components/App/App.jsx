@@ -28,6 +28,7 @@ class App extends Component {
 
   componentDidMount() {
     window.addEventListener('click', this.openModal);
+    console.log('click')
   }
 
   componentWillUnmount() {
