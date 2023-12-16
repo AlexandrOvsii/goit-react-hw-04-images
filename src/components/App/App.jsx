@@ -1,183 +1,99 @@
-import React, { Component } from 'react';
-import Searchbar from 'components/Searchbar/Searchbar';
+import React, { useEffect, useState } from 'react';
+import Searchbar from 'components/Searchbar';
 import * as API from '../common/api';
-import ImageGallery from 'components/ImageGallery/ImageGallery';
-import Button from 'components/Button/Button';
+import ImageGallery from 'components/ImageGallery';
+import Button from 'components/Button';
 import Modal from 'components/Modal';
 import Notiflix from 'notiflix';
-import Loader from 'components/Loader/Loader';
+import Loader from 'components/Loader';
 
-class App extends Component {
-  state = {
-    error: false,
-    isLoading: false,
-    searchedImages: null,
-    images: [],
-    page: 1,
-    largeImage: '',
-    showModal: false,
-    noImages: false,
-    imageCount: 0,
-  };
+function App() {
+  const [error, setError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [searchImages, setSearchImages] = useState(null);
+  const [images, setImages] = useState([]);
+  const [page, setPage] = useState(1);
+  const [largeImage, setLargeImage] = useState('');
+  const [showModal, setShowModal] = useState(false);
+  const [noImages, setNoImages] = useState(false);
+  const [imageCount, setImageCount] = useState(0);
 
-  componentDidUpdate(_, prevState) {
-    if (prevState.searchedImages !== this.state.searchedImages) {
-      this.fetchImages();
+  useEffect(() => {
+    if (searchImages === null) {
+      return;
     }
-  }
 
-  componentDidMount() {
-    window.addEventListener('click', this.openModal);
-    console.log('click')
-  }
+    const fetchImages = async () => {
+      try {
+        setIsLoading(true);
+        const imagesArray = await API.getImages(searchImages, page);
+        setImages(prevState => [...prevState, ...imagesArray.hits]);
+        setImageCount(prevState => prevState + imagesArray.hits.length);
 
-  componentWillUnmount() {
-    window.removeEventListener('click', this.openModal);
-  }
+        if (imagesArray.hits.length === 0 || imageCount >= 500) {
+          setNoImages(true);
+          setImages([]);
+        }
+      } catch (error) {
+        setError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchImages();
+  }, [page, searchImages]);
 
-  handleSearchForm = e => {
+  useEffect(() => {
+    window.addEventListener('click', openModal);
+    return () => {
+      window.removeEventListener('click', openModal);
+    };
+  });
+
+  const handleSearchForm = e => {
     e.preventDefault();
-    const searchedImages = e.currentTarget.elements.searchInput.value;
-    this.setState({ searchedImages });
+    const searchImageValue = e.currentTarget.elements.searchInput.value;
+    setSearchImages(searchImageValue);
+    setImages([])
+    setPage(1)
+    setImageCount(0)
+    setNoImages(false)
     e.currentTarget.reset();
   };
 
-  fetchImages = async () => {
-    try {
-      this.setState({ isLoading: true });
-      const images = await API.getImages(
-        this.state.searchedImages,
-        this.state.page
-      );
-      this.setState({ images: images.hits });
-
-      this.setState({ imageCount: images.hits.length });
-
-      if (images.hits.length === 0) {
-        this.setState({ noImages: true });
-      }
-    } catch (error) {
-      this.setState({ error: true });
-    } finally {
-      this.setState({ isLoading: false });
-    }
+  const loadMore = () => {
+    setPage(prevPage => prevPage + 1);
   };
 
-  loadMoreImages = async () => {
-    try {
-      this.setState({ isLoading: true });
-      const images = await API.getImages(
-        this.state.searchedImages,
-        this.state.page
-      );
-
-      console.log('Total Hits:', images.totalHits);
-
-      if (this.state.imageCount >= 500) {
-        console.log('Конец количества изображений');
-        this.setState({ noImages: true });
-      }
-
-      this.setState(prevState => ({
-        images: [...prevState.images, ...images.hits],
-      }));
-      this.setState(prevState => ({
-        imageCount: prevState.imageCount + images.hits.length,
-      }));
-    } catch (error) {
-      this.setState({ error: true });
-    } finally {
-      this.setState({ isLoading: false });
-    }
+  const closeModal = () => {
+    setShowModal(false);
   };
 
-  loadMore = () => {
-    this.setState({ page: this.state.page + 1 });
-    this.loadMoreImages();
-  };
-
-  openModal = e => {
+  const openModal = e => {
     if (e.target.nodeName !== 'IMG') {
       return;
     }
-    this.setState({ showModal: true, largeImage: e.target });
+    setShowModal(true);
+    setLargeImage(e.target);
   };
 
-  closeModal = () => {
-    this.setState({ showModal: false });
-  };
-
-  render() {
-    const { error, isLoading, images, page, showModal, largeImage, noImages } =
-      this.state;
-    return (
-      <div>
-        <Searchbar handleSearchForm={this.handleSearchForm} />
-        {isLoading && <Loader />}
-        <ImageGallery images={images} />
-        {error &&
-          Notiflix.Notify.failure('Something wrong, please refresh a page')}
-        {noImages &&
-          Notiflix.Notify.info(
-            'Sorry, no more images in your response. Try another word'
-          )}
-        {images.length && noImages === false && (
-          <Button page={page} loadMore={this.loadMore} />
+  return (
+    <div>
+      <Searchbar handleSearchForm={handleSearchForm} />
+      {isLoading && <Loader />}
+      <ImageGallery images={images} />
+      {error &&
+        Notiflix.Notify.failure('Something wrong, please refresh a page')}
+      {noImages &&
+        Notiflix.Notify.info(
+          'Sorry, no more images in your response. Try another word'
         )}
-        {showModal && (
-          <Modal largeImage={largeImage} closeModal={this.closeModal} />
-        )}
-      </div>
-    );
-  }
+      {images.length > 0 && noImages === false && (
+        <Button page={page} loadMore={loadMore} />
+      )}
+      {showModal && <Modal largeImage={largeImage} closeModal={closeModal} />}
+    </div>
+  );
 }
 
 export default App;
-
-// class App extends Component {
-//   state = {
-//     showModal: false,
-//   };
-
-//   componentDidMount() {
-//     console.log('componentDidMount');
-//   }
-
-//   componentWillUnmount() {
-//     console.log('componentWillUnmount');
-//   }
-
-//   toggleModal = () => {
-//     this.setState(state => ({
-//       showModal: !state.showModal,
-//     }));
-//   };
-
-//   render() {
-//     const { showModal } = this.state;
-
-//     return (
-//       <div>
-//         <button type="button" onClick={this.toggleModal}>
-//           Открыть модалку
-//         </button>
-//         {showModal && (
-//           <Modal onClose={this.toggleModal}>
-//             <h1>привет</h1>
-//             <p>
-//               Lorem ipsum dolor sit amet consectetur, adipisicing elit.
-//               Explicabo adipisci consequatur distinctio consectetur temporibus
-//               cum eos, necessitatibus esse, mollitia, alias illo similique? Quam
-//               fuga sequi quos! Voluptate deleniti quasi repellendus.
-//             </p>
-//             <button type="button" onClick={this.toggleModal}>
-//               Закрыть модалку
-//             </button>
-//           </Modal>
-//         )}
-//       </div>
-//     );
-//   }
-// }
-
-// export default App;
