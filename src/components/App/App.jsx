@@ -41,6 +41,7 @@ function App() {
       }
     };
     fetchImages();
+    // eslint-disable-next-line
   }, [page, searchImages]);
 
   useEffect(() => {
